@@ -1,4 +1,10 @@
-import type { ContextResponse, FileMetadata, HighlightResponse } from "../types/api";
+import type {
+  ContextResponse,
+  FileMetadata,
+  HighlightResponse,
+  IndexBase,
+  RangeMode,
+} from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -47,19 +53,27 @@ export async function fetchContext(
 export async function fetchHighlight(
   fileId: string,
   line: number,
+  indexBase: IndexBase,
+  mode: RangeMode,
   start: number,
-  end: number,
+  end: number | null,
+  length: number | null,
   radius: number,
 ): Promise<HighlightResponse> {
-  const params = new URLSearchParams({
-    line: String(line),
-    start: String(start),
-    end: String(end),
-    radius: String(radius),
-  });
+  const params = new URLSearchParams();
+  params.set("line", String(line));
+  params.set("index_base", String(indexBase));
+  params.set("mode", mode);
+  params.set("start", String(start));
+  params.set("radius", String(radius));
+  if (mode === "end" && end !== null) {
+    params.set("end", String(end));
+  }
+  if (mode === "length" && length !== null) {
+    params.set("length", String(length));
+  }
   const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/highlight?${params.toString()}`);
   return parseResponse<HighlightResponse>(response);
 }
 
 export { ApiError };
-

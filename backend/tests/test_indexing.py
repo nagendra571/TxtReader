@@ -5,6 +5,7 @@ from pathlib import Path
 from app.models import FileIndex
 from app.services.indexing import (
     build_line_offsets,
+    normalize_highlight_range,
     read_context_lines,
     read_line,
     split_highlight_segments,
@@ -93,3 +94,52 @@ def test_highlight_rejects_out_of_bounds() -> None:
     else:
         raise AssertionError("Expected split_highlight_segments to reject invalid range.")
 
+
+def test_normalize_highlight_end_mode_zero_based() -> None:
+    text = "abcdef"
+    normalized = normalize_highlight_range(
+        text,
+        index_base=0,
+        mode="end",
+        start=1,
+        end=4,
+        length=None,
+    )
+    assert normalized.start0 == 1
+    assert normalized.end0_exclusive == 4
+    assert normalized.effective_start == 1
+    assert normalized.effective_end == 4
+    assert normalized.effective_length == 3
+
+
+def test_normalize_highlight_end_mode_one_based() -> None:
+    text = "abcdef"
+    normalized = normalize_highlight_range(
+        text,
+        index_base=1,
+        mode="end",
+        start=2,
+        end=5,
+        length=None,
+    )
+    assert normalized.start0 == 1
+    assert normalized.end0_exclusive == 4
+    assert normalized.effective_start == 2
+    assert normalized.effective_end == 5
+    assert normalized.effective_length == 3
+
+
+def test_normalize_highlight_length_mode() -> None:
+    text = "abcdef"
+    normalized = normalize_highlight_range(
+        text,
+        index_base=1,
+        mode="length",
+        start=2,
+        end=None,
+        length=3,
+    )
+    assert normalized.start0 == 1
+    assert normalized.end0_exclusive == 4
+    assert normalized.effective_end == 5
+    assert normalized.effective_length == 3

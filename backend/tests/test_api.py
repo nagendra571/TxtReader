@@ -29,57 +29,102 @@ def _test_settings(tmp_path: Path) -> Settings:
 
 def test_upload_then_highlight_flow(tmp_path: Path) -> None:
     app = create_app(custom_settings=_test_settings(tmp_path))
-    client = TestClient(app)
+    with TestClient(app) as client:
+        data = "line0\nhello world\nline2\n".encode("utf-8")
+        upload_response = client.post(
+            "/api/files",
+            files={"file": ("sample.txt", data, "text/plain")},
+        )
+        assert upload_response.status_code == 201
+        payload = upload_response.json()
+        file_id = payload["file_id"]
+        assert payload["total_lines"] == 3
 
-    data = "line0\nhello world\nline2\n".encode("utf-8")
-    upload_response = client.post(
-        "/api/files",
-        files={"file": ("sample.txt", data, "text/plain")},
-    )
-    assert upload_response.status_code == 201
-    payload = upload_response.json()
-    file_id = payload["file_id"]
-    assert payload["total_lines"] == 3
+        highlight_response = client.get(
+            f"/api/files/{file_id}/highlight",
+            params={
+                "line": 2,
+                "index_base": 0,
+                "mode": "end",
+                "start": 6,
+                "end": 11,
+                "radius": 1,
+            },
+        )
+        assert highlight_response.status_code == 200
+        highlight_payload = highlight_response.json()
 
-    highlight_response = client.get(
-        f"/api/files/{file_id}/highlight",
-        params={"line": 2, "start": 6, "end": 11, "radius": 1},
-    )
-    assert highlight_response.status_code == 200
-    highlight_payload = highlight_response.json()
-
-    assert highlight_payload["target_line"] == 2
-    assert highlight_payload["highlight"] == {"start": 6, "end": 11}
-    target_line = next(line for line in highlight_payload["lines"] if line["line_no"] == 2)
-    assert target_line["segments"] == {"pre": "hello ", "mid": "world", "post": ""}
+        assert highlight_payload["file_id"] == file_id
+        assert highlight_payload["target_line"] == 2
+        assert highlight_payload["index_base"] == 0
+        assert highlight_payload["mode"] == "end"
+        assert highlight_payload["effective_start"] == 6
+        assert highlight_payload["effective_end"] == 11
+        assert highlight_payload["effective_length"] == 5
+        assert highlight_payload["normalized"] == {"start0": 6, "end0_exclusive": 11}
+        target_line = next(line for line in highlight_payload["lines"] if line["line_no"] == 2)
+        assert target_line["segments"] == {"pre": "hello ", "mid": "world", "post": ""}
+        assert target_line["line_length"] == 11
 
 
 def test_highlight_validation_error(tmp_path: Path) -> None:
     app = create_app(custom_settings=_test_settings(tmp_path))
-    client = TestClient(app)
+    with TestClient(app) as client:
+        upload_response = client.post(
+            "/api/files",
+            files={"file": ("sample.txt", b"abc\n", "text/plain")},
+        )
+        file_id = upload_response.json()["file_id"]
 
-    upload_response = client.post(
-        "/api/files",
-        files={"file": ("sample.txt", b"abc\n", "text/plain")},
-    )
-    file_id = upload_response.json()["file_id"]
+        response = client.get(
+            f"/api/files/{file_id}/highlight",
+            params={
+                "line": 1,
+                "index_base": 0,
+                "mode": "end",
+                "start": 0,
+                "end": 5,
+                "radius": 1,
+            },
+        )
+        assert response.status_code == 422
+        assert "out of bounds" in response.json()["detail"]
 
-    response = client.get(
-        f"/api/files/{file_id}/highlight",
-        params={"line": 1, "start": 0, "end": 5, "radius": 1},
-    )
-    assert response.status_code == 422
-    assert "out of bounds" in response.json()["detail"]
+
+def test_highlight_length_mode_one_based(tmp_path: Path) -> None:
+    app = create_app(custom_settings=_test_settings(tmp_path))
+    with TestClient(app) as client:
+        upload_response = client.post(
+            "/api/files",
+            files={"file": ("sample.txt", b"0123456789\n", "text/plain")},
+        )
+        file_id = upload_response.json()["file_id"]
+
+        response = client.get(
+            f"/api/files/{file_id}/highlight",
+            params={
+                "line": 1,
+                "index_base": 1,
+                "mode": "length",
+                "start": 2,
+                "length": 4,
+                "radius": 0,
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["effective_start"] == 2
+        assert payload["effective_end"] == 6
+        assert payload["effective_length"] == 4
+        assert payload["normalized"] == {"start0": 1, "end0_exclusive": 5}
 
 
 def test_upload_rejects_invalid_utf8(tmp_path: Path) -> None:
     app = create_app(custom_settings=_test_settings(tmp_path))
-    client = TestClient(app)
-
-    response = client.post(
-        "/api/files",
-        files={"file": ("invalid.txt", b"\xff\xfe\x00", "text/plain")},
-    )
-    assert response.status_code == 400
-    assert "valid UTF-8" in response.json()["detail"]
-
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/files",
+            files={"file": ("invalid.txt", b"\xff\xfe\x00", "text/plain")},
+        )
+        assert response.status_code == 400
+        assert "valid UTF-8" in response.json()["detail"]

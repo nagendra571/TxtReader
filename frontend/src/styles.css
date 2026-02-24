@@ -80,6 +80,12 @@ input {
   font-size: 0.95rem;
 }
 
+input[type="radio"],
+input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+}
+
 button {
   border: 0;
   border-radius: 10px;
@@ -110,6 +116,7 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .actions-row {
@@ -128,6 +135,12 @@ button:disabled {
 .inline-group {
   display: flex;
   gap: 8px;
+}
+
+.stats-row {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
 }
 
 .error {
@@ -166,7 +179,67 @@ button:disabled {
 
 .line-text {
   padding: 6px 12px;
+  min-width: 0;
+}
+
+.target-line-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.line-target-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.line-content,
+.line-ruler,
+.line-ruler-labels {
+  margin: 0;
   white-space: pre;
+  tab-size: 4;
+}
+
+.line-ruler {
+  color: #5b6472;
+  margin-top: 2px;
+}
+
+.line-ruler-labels {
+  color: #1f2937;
+  margin-top: -2px;
+}
+
+.window-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.option-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  min-height: 96px;
+}
+
+.option-box legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.inline-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+}
+
+.checkbox-field {
+  gap: 8px;
 }
 
 mark {
@@ -180,6 +253,10 @@ mark {
   .controls-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .option-box {
+    min-height: auto;
+  }
 }
 
 @media (max-width: 560px) {
@@ -191,4 +268,3 @@ mark {
     grid-template-columns: 64px 1fr;
   }
 }
-

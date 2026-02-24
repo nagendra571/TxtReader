@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, Literal
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -13,14 +13,15 @@ from app.config import Settings, get_settings
 from app.schemas import (
     ContextResponse,
     HighlightResponse,
-    HighlightSpec,
     LineItem,
     LineSegments,
+    NormalizedRange,
     UploadResponse,
 )
 from app.services.index_store import IndexStore
 from app.services.indexing import (
     IndexValidationError,
+    normalize_highlight_range,
     read_context_lines,
     read_line,
     split_highlight_segments,
@@ -138,6 +139,7 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         return ContextResponse(
+            file_id=file_id,
             target_line=line,
             radius=radius,
             total_lines=file_index.total_lines,
@@ -148,8 +150,17 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
     async def get_highlight(
         file_id: str,
         line: int = Query(..., ge=1, description="1-based line number"),
-        start: int = Query(..., ge=0, description="0-based inclusive character start"),
-        end: int = Query(..., ge=0, description="0-based exclusive character end"),
+        index_base: int = Query(0, ge=0, le=1, description="Index base, either 0 or 1"),
+        mode: Literal["end", "length"] = Query("end", description="Range mode: end or length"),
+        start: int = Query(..., description="Start character index in selected base"),
+        end: int | None = Query(
+            default=None,
+            description="End character index (exclusive) in selected base when mode=end",
+        ),
+        length: int | None = Query(
+            default=None,
+            description="Highlight length when mode=length",
+        ),
         radius: int = Query(10, ge=0, description="Context radius in lines"),
     ) -> HighlightResponse:
         if radius > settings.max_radius:
@@ -166,7 +177,19 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         try:
             context_lines = await run_in_threadpool(read_context_lines, file_index, line, radius)
             target_text = await run_in_threadpool(read_line, file_index, line)
-            segments = split_highlight_segments(target_text, start, end)
+            normalized = normalize_highlight_range(
+                target_text,
+                index_base=index_base,
+                mode=mode,
+                start=start,
+                end=end,
+                length=length,
+            )
+            segments = split_highlight_segments(
+                target_text,
+                normalized.start0,
+                normalized.end0_exclusive,
+            )
         except IndexValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -177,16 +200,26 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                     line_no=item["line_no"],
                     text=item["text"],
                     segments=LineSegments(**segments),
+                    line_length=len(target_text),
                 )
             else:
                 line_item = LineItem(line_no=item["line_no"], text=item["text"])
             lines_payload.append(line_item)
 
         return HighlightResponse(
+            file_id=file_id,
             target_line=line,
             radius=radius,
             total_lines=file_index.total_lines,
-            highlight=HighlightSpec(start=start, end=end),
+            index_base=index_base,
+            mode=mode,
+            effective_start=normalized.effective_start,
+            effective_end=normalized.effective_end,
+            effective_length=normalized.effective_length,
+            normalized=NormalizedRange(
+                start0=normalized.start0,
+                end0_exclusive=normalized.end0_exclusive,
+            ),
             lines=lines_payload,
         )
 

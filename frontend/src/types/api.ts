@@ -14,21 +14,30 @@ export interface LineItem {
   line_no: number;
   text: string;
   segments?: LineSegments | null;
+  line_length?: number | null;
 }
 
 export interface ContextResponse {
+  file_id: string;
   target_line: number;
   radius: number;
   total_lines: number;
   lines: LineItem[];
 }
 
-export interface HighlightSpec {
-  start: number;
-  end: number;
+export type IndexBase = 0 | 1;
+export type RangeMode = "end" | "length";
+
+export interface NormalizedRange {
+  start0: number;
+  end0_exclusive: number;
 }
 
 export interface HighlightResponse extends ContextResponse {
-  highlight: HighlightSpec;
+  index_base: IndexBase;
+  mode: RangeMode;
+  effective_start: number;
+  effective_end: number;
+  effective_length: number;
+  normalized: NormalizedRange;
 }
-

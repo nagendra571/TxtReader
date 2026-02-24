@@ -4,11 +4,17 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .venv/
+*.pyc
+
+# Local pytest temp artifacts
+backend/.pytest_tmp/
+backend/pytest-cache-files-*/
 
 # Node
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
 
 # OS/editor
 .DS_Store
@@ -17,4 +23,3 @@ Thumbs.db
 # Local storage/output
 backend/storage/
 sample_100k.txt
-

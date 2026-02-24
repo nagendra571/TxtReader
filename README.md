@@ -1,31 +1,65 @@
 # TxtReader
 
-TxtReader is a high-performance line inspector for large `.txt` files.
+TxtReader is a developer-focused text inspector for large `.txt` files.
 
-It supports:
-- upload UTF-8 text files (including very large line counts)
-- jump to a specific line
-- highlight a substring on that line using character indices
-- render line numbers and a context window around the target line
+It is built for correctness and speed:
+- uploads UTF-8 text files with 100k+ lines
+- random-accesses lines using persisted byte-offset indexes
+- highlights ranges by user-selected index rules
+- renders only context lines (not full file DOM)
 
-## Conventions
+## Core Conventions
 
-These are fixed throughout the app and API:
-- Line number: `1-based`
-- Character indices: `0-based`
-- Highlight interval: `[start, end)` where `end` is exclusive
+- Line number is always `1-based`.
+- User index base is configurable: `0-based` or `1-based`.
+- Backend canonical range is always `0-based` with `end exclusive`.
+- User chooses one range mode:
+  - `Start + End`
+  - `Start + Length`
 
-Example:
-- `text = "hello world"`
-- `start = 6`, `end = 11`
-- highlighted text is `"world"`
+## Feature Summary
 
-## Why It Is Fast
+- Upload `.txt` and get `file_id`, filename, total lines.
+- Fetch context around target line (`radius`, default 10).
+- Highlight target range with:
+  - index base toggle (`0` or `1`)
+  - range mode toggle (`end` or `length`)
+- Show computed effective values and normalized canonical values.
+- Target line index ruler under the line:
+  - aligned monospace proof line
+  - starts numbering from selected index base
+  - tick markers every 5/10 columns
+- Optional UI toggles:
+  - Show spaces as dots (` ` -> `.`) without breaking index mapping (1:1 replacement)
+  - Show full line or window around highlight
+- Quick actions:
+  - Copy highlighted text
+  - Copy full target line
+  - Prev / Next line
+  - Find first occurrence in current target line
 
-- Uploaded files are stored on disk; file content is not loaded into the DOM.
-- Backend builds a byte-offset index (`offsets[line_no - 1]`) once per upload.
-- API reads only requested lines via `mmap` + offsets.
-- Frontend renders only the requested context lines, and uses virtualization for larger contexts.
+## Performance Architecture
+
+## Backend
+
+- FastAPI async API.
+- Uploaded files are saved to disk (`backend/storage/uploads`).
+- On upload, app builds line-start byte offsets:
+  - one offset per line
+  - persisted to disk as `{file_id}.idx`
+  - cached in memory for fast access
+- Reads only needed lines using offsets + `mmap`.
+- No full-file string list is created in memory.
+- Handles both `LF` and `CRLF`.
+- UTF-8 is validated during streaming upload.
+- TTL cleanup removes expired files/indexes.
+
+## Frontend
+
+- React + TypeScript + Vite.
+- Renders only returned context lines.
+- Monospace + `white-space: pre` for visual/index consistency.
+- Target line and ruler share one horizontal scroll container for alignment.
 
 ## Repository Layout
 
@@ -65,9 +99,9 @@ scripts/
 - Node.js `18+` (Node 20 recommended)
 - npm `9+`
 
-## Start Both Apps
+## Start the Apps
 
-Use two terminals from repo root.
+Use two terminals from repository root.
 
 ## Terminal 1: Backend
 
@@ -79,9 +113,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend URL:
-- `http://localhost:8000`
-- Swagger docs: `http://localhost:8000/docs`
+Backend URLs:
+- API root: `http://localhost:8000`
+- Swagger: `http://localhost:8000/docs`
 
 ## Terminal 2: Frontend
 
@@ -98,121 +132,159 @@ Frontend URL:
 
 ## Backend
 
-- `TXT_READER_MAX_UPLOAD_MB` (default `128`)
-- `TXT_READER_MAX_RADIUS` (default `200`)
-- `TXT_READER_FILE_TTL_SECONDS` (default `86400`)
-- `TXT_READER_CLEANUP_INTERVAL_SECONDS` (default `1800`)
-- `TXT_READER_STORAGE_DIR` (default `backend/storage`)
-- `TXT_READER_UPLOADS_DIR` (optional custom uploads path)
-- `TXT_READER_INDEXES_DIR` (optional custom indexes path)
-- `TXT_READER_CORS_ORIGINS` (comma-separated list; defaults include Vite localhost URLs)
+- `TXT_READER_MAX_UPLOAD_MB` default: `128`
+- `TXT_READER_MAX_RADIUS` default: `200`
+- `TXT_READER_FILE_TTL_SECONDS` default: `86400`
+- `TXT_READER_CLEANUP_INTERVAL_SECONDS` default: `1800`
+- `TXT_READER_STORAGE_DIR` default: `backend/storage`
+- `TXT_READER_UPLOADS_DIR` optional custom uploads path
+- `TXT_READER_INDEXES_DIR` optional custom indexes path
+- `TXT_READER_CORS_ORIGINS` comma-separated origins
 
 ## Frontend
 
-- `VITE_API_BASE_URL` (default `http://localhost:8000`)
+- `VITE_API_BASE_URL` default: `http://localhost:8000`
 
-## API Endpoints
+## API
 
 ## `POST /api/files`
 
-Uploads a `.txt` file, validates UTF-8, builds index.
+Upload a UTF-8 `.txt` file.
 
 Response:
 ```json
 {
   "file_id": "uuid",
-  "filename": "myfile.txt",
+  "filename": "sample.txt",
   "total_lines": 100000
 }
 ```
 
 ## `GET /api/files/{file_id}/context?line=123&radius=10`
 
-Returns context window:
+Response:
 ```json
 {
+  "file_id": "uuid",
   "target_line": 123,
   "radius": 10,
   "total_lines": 100000,
   "lines": [
     { "line_no": 113, "text": "..." },
-    { "line_no": 114, "text": "..." }
+    { "line_no": 123, "text": "..." },
+    { "line_no": 133, "text": "..." }
   ]
 }
 ```
 
-## `GET /api/files/{file_id}/highlight?line=123&start=5&end=15&radius=10`
+## `GET /api/files/{file_id}/highlight`
 
-Returns context + highlight metadata and target segments:
+Query params:
+- `line` (1-based)
+- `index_base` (`0` or `1`)
+- `mode` (`end` or `length`)
+- `start`
+- `end` when `mode=end`
+- `length` when `mode=length`
+- `radius` (default `10`)
+
+Response:
 ```json
 {
+  "file_id": "uuid",
   "target_line": 123,
   "radius": 10,
   "total_lines": 100000,
-  "highlight": { "start": 5, "end": 15 },
+  "index_base": 1,
+  "mode": "length",
+  "effective_start": 6,
+  "effective_end": 16,
+  "effective_length": 10,
+  "normalized": {
+    "start0": 5,
+    "end0_exclusive": 15
+  },
   "lines": [
     { "line_no": 122, "text": "..." },
     {
       "line_no": 123,
-      "text": "some line",
-      "segments": { "pre": "some ", "mid": "line", "post": "" }
+      "text": "the target line",
+      "line_length": 200,
+      "segments": { "pre": "...", "mid": "...", "post": "..." }
     },
     { "line_no": 124, "text": "..." }
   ]
 }
 ```
 
-## Manual Testing Guide
+## Manual Testing
 
-## 1. Generate a Large Test File
-
-From repo root:
+## 1. Generate large test data
 
 ```powershell
 python scripts\generate_sample_txt.py --output sample_100k.txt --lines 100000
 ```
 
-## 2. Upload and Basic Highlight
+## 2. Baseline highlight flow
 
 1. Open `http://localhost:5173`.
 2. Upload `sample_100k.txt`.
 3. Enter:
-   - Line: `50000`
-   - Start: `8`
-   - End: `15`
-   - Radius: `10`
-4. Click `Go`.
+   - Line `50000`
+   - Indexing `0-based`
+   - Range mode `Start + End`
+   - Start `8`
+   - End `20`
+   - Radius `10`
+4. Click `Go / Highlight`.
 5. Verify:
-   - target line is visible and highlighted
-   - 10 lines above + 10 below are shown (or clipped near file edges)
-   - line numbers appear correctly
+   - target line is highlighted
+   - line numbers are shown
+   - exactly context rows around target are rendered
+   - ruler appears under target line and starts at `0`
 
-## 3. Edge Cases
+## 3. Switch index base
 
-1. First line boundary:
-   - Line `1`, radius `10`
-   - Ensure no negative/invalid line rows appear.
-2. Last line boundary:
-   - Line `100000`, radius `10`
-   - Ensure end-of-file clipping works.
-3. Invalid range:
-   - Set `start > end` or `end` beyond line length
-   - Confirm inline error and no crash.
-4. Larger context:
-   - Radius `200`
-   - Confirm UI remains responsive.
-5. Quick actions:
-   - `Copy highlighted text`
-   - `Copy line`
-   - `Prev line` / `Next line`
-   - Optional search autofill in target line
+1. Change Indexing to `1-based`.
+2. Adjust start/end to equivalent positions.
+3. Click `Go / Highlight`.
+4. Verify:
+   - highlight still matches expected text
+   - ruler labels now start at `1`
 
-## 4. UTF-8 and Newline Behavior
+## 4. Switch to length mode
 
-1. Upload a UTF-8 file containing emoji or accented characters.
-2. Verify highlighting by character index works on decoded text.
-3. Upload files with `LF` and `CRLF` endings.
-4. Verify returned line text does not include newline characters.
+1. Change Range mode to `Start + Length`.
+2. Set Start and Length.
+3. Verify:
+   - computed end display updates
+   - returned effective range matches expected
+   - highlight length equals configured length
+
+## 5. Dot-space visualization
+
+1. Enable `Show spaces as dots (.)`.
+2. Verify spaces render as `.` on lines.
+3. Confirm highlight remains aligned and unchanged by index.
+
+## 6. Windowed target view
+
+1. Disable `Show full line`.
+2. Verify:
+   - target line and ruler are windowed around highlight
+   - horizontal alignment remains correct
+
+## 7. Edge and validation checks
+
+- Line out of range.
+- Start/end invalid.
+- Negative length.
+- Radius > configured max.
+- Start > end in end mode.
+- UTF-8 files with emoji/accented characters.
+- Files with `LF` and `CRLF`.
+
+Expected: clear inline/backend validation errors; app remains stable.
 
 ## Automated Tests
 
@@ -223,13 +295,14 @@ cd backend
 pytest
 ```
 
-Covers:
-- index construction (small + large)
-- line retrieval by line number
+Coverage includes:
+- offset index builder correctness
+- line retrieval correctness
 - highlight segmentation
-- UTF-8 behavior
-- CRLF/LF handling
-- API upload + highlight flow
+- 0-based and 1-based normalization
+- length mode conversion
+- UTF-8 and CRLF/LF behavior
+- API upload/highlight flow
 
 ## Frontend
 
@@ -238,8 +311,12 @@ cd frontend
 npm test
 ```
 
-Covers:
-- upload flow and highlight rendering integration path
+Coverage includes:
+- upload -> highlight flow
+- base toggle behavior
+- length mode behavior
+- space-dot visualization alignment
+- ruler numbering start proof
 
 ## Build for Production
 
@@ -258,19 +335,22 @@ npm run build
 npm run preview
 ```
 
-## Storage and Cleanup
+## Storage and Lifecycle
 
-- Uploads and indexes are stored under `backend/storage/` by default.
-- Cleanup job runs periodically and removes files older than `TXT_READER_FILE_TTL_SECONDS`.
-- Indexes are persisted, so restart recovery works as long as files still exist.
+- Uploads and indexes default to `backend/storage`.
+- Indexes persist across restarts.
+- Cleanup task periodically removes expired artifacts by TTL.
 
 ## Troubleshooting
 
-- `Only .txt files are supported`: rename/export as `.txt`.
-- `Uploaded file is not valid UTF-8`: re-save file with UTF-8 encoding.
-- `radius must be <= ...`: lower radius or increase backend max radius env var.
-- CORS issues in browser:
-  - ensure frontend URL is included in `TXT_READER_CORS_ORIGINS`.
+- `Only .txt files are supported`:
+  - upload a file with `.txt` extension.
+- `Uploaded file is not valid UTF-8`:
+  - re-save source as UTF-8.
+- `radius must be <= ...`:
+  - lower radius or raise backend max radius env var.
+- CORS errors:
+  - include frontend origin in `TXT_READER_CORS_ORIGINS`.
 - Frontend test error `expect is not defined`:
   - ensure `src/setupTests.ts` imports `@testing-library/jest-dom/vitest`
-  - ensure Vitest config sets `test.globals = true`
+  - ensure `vite.config.ts` has `test.globals = true`

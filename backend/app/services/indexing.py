@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import json
 import mmap
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from app.models import FileIndex
 
 
 class IndexValidationError(ValueError):
     """Raised when line or index inputs are invalid."""
+
+
+@dataclass(frozen=True)
+class NormalizedHighlightRange:
+    start0: int
+    end0_exclusive: int
+    effective_start: int
+    effective_end: int
+    effective_length: int
 
 
 def build_line_offsets(file_path: Path) -> tuple[list[int], int, int]:
@@ -119,3 +130,53 @@ def split_highlight_segments(text: str, start: int, end: int) -> dict[str, str]:
         "post": text[end:],
     }
 
+
+def normalize_highlight_range(
+    text: str,
+    *,
+    index_base: int,
+    mode: Literal["end", "length"],
+    start: int,
+    end: int | None,
+    length: int | None,
+) -> NormalizedHighlightRange:
+    if index_base not in (0, 1):
+        raise IndexValidationError("index_base must be 0 or 1")
+
+    min_user_index = 0 if index_base == 0 else 1
+    if start < min_user_index:
+        raise IndexValidationError(f"start must be >= {min_user_index} for index_base={index_base}")
+
+    start0 = start - index_base
+
+    if mode == "end":
+        if end is None:
+            raise IndexValidationError("end is required when mode=end")
+        if length is not None:
+            raise IndexValidationError("length must not be provided when mode=end")
+        if end < min_user_index:
+            raise IndexValidationError(
+                f"end must be >= {min_user_index} for index_base={index_base}"
+            )
+        end0_exclusive = end - index_base
+    elif mode == "length":
+        if length is None:
+            raise IndexValidationError("length is required when mode=length")
+        if end is not None:
+            raise IndexValidationError("end must not be provided when mode=length")
+        if length < 0:
+            raise IndexValidationError("length must be >= 0")
+        end0_exclusive = start0 + length
+    else:
+        raise IndexValidationError("mode must be one of: end, length")
+
+    # Reuse segment validation to enforce bounds and ordering against decoded character length.
+    split_highlight_segments(text, start0, end0_exclusive)
+
+    return NormalizedHighlightRange(
+        start0=start0,
+        end0_exclusive=end0_exclusive,
+        effective_start=start,
+        effective_end=end0_exclusive + index_base,
+        effective_length=end0_exclusive - start0,
+    )
