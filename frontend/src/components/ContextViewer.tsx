@@ -11,6 +11,8 @@ interface DisplayTargetData {
   pre: string;
   mid: string;
   post: string;
+  markerLine: string;
+  markerLabels: string;
   windowStart0: number;
   windowEnd0: number;
   rulerTicks: string;
@@ -24,14 +26,35 @@ function visualizeSpaces(text: string, enabled: boolean): string {
   return text.replace(/ /g, ".");
 }
 
-function buildRuler(length: number, start0Offset: number, indexBase: 0 | 1): {
+function createAlignmentTemplate(text: string): string[] {
+  return Array.from(text, (char) => (char === "\t" ? "\t" : " "));
+}
+
+function writeLabel(target: string[], at: number, label: string): void {
+  for (let i = 0; i < label.length; i += 1) {
+    const idx = at + i;
+    if (idx < 0 || idx >= target.length) {
+      break;
+    }
+    if (target[idx] === "\t") {
+      continue;
+    }
+    target[idx] = label[i];
+  }
+}
+
+function buildRuler(windowText: string, start0Offset: number, indexBase: 0 | 1): {
   ticks: string;
   labels: string;
 } {
-  const tickChars = new Array<string>(length).fill(".");
-  const labelChars = new Array<string>(length).fill(" ");
+  const length = windowText.length;
+  const tickChars = createAlignmentTemplate(windowText);
+  const labelChars = createAlignmentTemplate(windowText);
 
   for (let i = 0; i < length; i += 1) {
+    if (tickChars[i] === "\t") {
+      continue;
+    }
     const global0 = start0Offset + i;
     if (global0 % 10 === 0) {
       tickChars[i] = "+";
@@ -41,18 +64,59 @@ function buildRuler(length: number, start0Offset: number, indexBase: 0 | 1): {
   }
 
   for (let i = 0; i < length; i += 1) {
+    if (labelChars[i] === "\t") {
+      continue;
+    }
     const global0 = start0Offset + i;
     if (global0 % 10 !== 0) {
       continue;
     }
     const label = String(global0 + indexBase);
-    for (let j = 0; j < label.length && i + j < length; j += 1) {
-      labelChars[i + j] = label[j];
-    }
+    writeLabel(labelChars, i, label);
   }
 
   return {
     ticks: tickChars.join(""),
+    labels: labelChars.join(""),
+  };
+}
+
+function buildRangeMarkers(
+  windowText: string,
+  inWindowStart: number,
+  inWindowEnd: number,
+  windowStart0: number,
+  indexBase: 0 | 1,
+): { line: string; labels: string } {
+  const markerChars = createAlignmentTemplate(windowText);
+  const labelChars = createAlignmentTemplate(windowText);
+  const length = windowText.length;
+
+  const startIndex = Math.max(0, Math.min(inWindowStart, Math.max(0, length - 1)));
+  const rawEndIndex = Math.max(0, inWindowEnd);
+  const endIndex = rawEndIndex >= length ? Math.max(0, length - 1) : rawEndIndex;
+
+  if (length > 0) {
+    if (markerChars[startIndex] !== "\t") {
+      markerChars[startIndex] = "|";
+    }
+    if (markerChars[endIndex] !== "\t") {
+      markerChars[endIndex] = "|";
+    }
+  }
+
+  const startLabel = String(windowStart0 + inWindowStart + indexBase);
+  const endLabel = String(windowStart0 + inWindowEnd + indexBase);
+  writeLabel(labelChars, startIndex, startLabel);
+
+  const endLabelStart = Math.max(
+    0,
+    Math.min(length - endLabel.length, Math.max(startIndex + startLabel.length + 1, endIndex)),
+  );
+  writeLabel(labelChars, endLabelStart, endLabel);
+
+  return {
+    line: markerChars.join(""),
     labels: labelChars.join(""),
   };
 }
@@ -86,12 +150,21 @@ function buildTargetDisplayData(
   const pre = windowText.slice(0, inWindowStart);
   const mid = windowText.slice(inWindowStart, inWindowEnd);
   const post = windowText.slice(inWindowEnd);
-  const ruler = buildRuler(windowText.length, windowStart0, data.index_base);
+  const ruler = buildRuler(windowText, windowStart0, data.index_base);
+  const markers = buildRangeMarkers(
+    windowText,
+    inWindowStart,
+    inWindowEnd,
+    windowStart0,
+    data.index_base,
+  );
 
   return {
     pre,
     mid,
     post,
+    markerLine: markers.line,
+    markerLabels: markers.labels,
     windowStart0,
     windowEnd0,
     rulerTicks: ruler.ticks,
@@ -110,7 +183,16 @@ export function ContextViewer({
   windowPadding = 80,
 }: ContextViewerProps) {
   if (!data) {
-    return <p className="muted">Run a highlight query to view context lines.</p>;
+    return (
+      <div className="viewer-shell">
+        <div className="line-row">
+          <div className="line-number">-</div>
+          <div className="line-text">
+            <p className="muted">Run a highlight query to view context lines.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const targetLine = data.lines.find((line) => line.line_no === data.target_line);
@@ -141,6 +223,8 @@ export function ContextViewer({
                   <mark>{visualizeSpaces(targetDisplay.mid, showSpacesAsDots)}</mark>
                   <span>{visualizeSpaces(targetDisplay.post, showSpacesAsDots)}</span>
                 </pre>
+                <pre className="range-marker-line">{targetDisplay.markerLine}</pre>
+                <pre className="range-marker-labels">{targetDisplay.markerLabels}</pre>
                 <pre className="line-ruler">{targetDisplay.rulerTicks}</pre>
                 <pre className="line-ruler-labels">{targetDisplay.rulerLabels}</pre>
               </div>

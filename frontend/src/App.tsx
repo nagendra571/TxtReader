@@ -11,7 +11,7 @@ function App() {
       {file ? (
         <>
           <div className="top-bar">
-            <button type="button" onClick={() => setFile(null)}>
+            <button className="btn-secondary" type="button" onClick={() => setFile(null)}>
               Upload another file
             </button>
           </div>
@@ -25,4 +25,3 @@ function App() {
 }
 
 export default App;
-

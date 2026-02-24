@@ -63,11 +63,10 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
           </p>
         ) : null}
 
-        <button type="submit" disabled={isUploading}>
+        <button className="btn-primary" type="submit" disabled={isUploading}>
           {isUploading ? "Uploading..." : "Upload"}
         </button>
       </form>
     </section>
   );
 }
-

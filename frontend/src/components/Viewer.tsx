@@ -217,167 +217,231 @@ export function Viewer({ file }: ViewerProps) {
   }
 
   return (
-    <section className="card viewer-card">
-      <header className="viewer-header">
-        <div>
-          <h2>{file.filename}</h2>
-          <p className="muted">Total lines: {file.total_lines.toLocaleString()}</p>
-          <p className="muted">
-            Line number is 1-based. Highlight indices follow the selected index base.
-          </p>
+    <section className="inspector-shell">
+      <header className="file-header card">
+        <div className="file-header-main">
+          <div className="file-title-row">
+            <span aria-hidden="true" className="file-icon">
+              📄
+            </span>
+            <h1 className="file-title">{file.filename}</h1>
+          </div>
+          <p className="muted">Precision text inspector for indexed highlight and context lookup.</p>
+        </div>
+        <div className="meta-pills">
+          <div className="meta-pill">
+            <span className="meta-label">TOTAL LINES:</span>
+            <strong>{file.total_lines.toLocaleString()}</strong>
+          </div>
+          <div className="meta-pill">
+            <span className="meta-label">INDEX BASE:</span>
+            <strong>1-based</strong>
+          </div>
         </div>
       </header>
 
-      <form className="controls-grid" onSubmit={onSubmit}>
-        <label className="field">
-          <span>Line # (1-based)</span>
-          <input value={line} onChange={(e) => setLine(e.target.value)} />
-        </label>
+      <div className="workspace-grid">
+        <form className="control-panel card" onSubmit={onSubmit}>
+          <section className="control-section">
+            <h2>Location</h2>
+            <label className="field line-field">
+              <span>Line # (1-based)</span>
+              <div className="line-nav-row">
+                <input value={line} onChange={(e) => setLine(e.target.value)} />
+                <button
+                  className="btn-ghost-icon"
+                  type="button"
+                  onClick={() => void jump(-1)}
+                  disabled={isLoading}
+                  aria-label="Previous line"
+                >
+                  ◀
+                </button>
+                <button
+                  className="btn-ghost-icon"
+                  type="button"
+                  onClick={() => void jump(1)}
+                  disabled={isLoading}
+                  aria-label="Next line"
+                >
+                  ▶
+                </button>
+              </div>
+            </label>
+          </section>
 
-        <fieldset className="field option-box">
-          <legend>Indexing</legend>
-          <label className="inline-option">
-            <input
-              type="radio"
-              name="index-base"
-              checked={indexBase === 0}
-              onChange={() => setIndexBase(0)}
-            />
-            0-based
-          </label>
-          <label className="inline-option">
-            <input
-              type="radio"
-              name="index-base"
-              checked={indexBase === 1}
-              onChange={() => setIndexBase(1)}
-            />
-            1-based
-          </label>
-        </fieldset>
+          <section className="control-section">
+            <h2>Index Settings</h2>
+            <fieldset className="segmented-group">
+              <legend>Indexing</legend>
+              <label className="seg-option">
+                <input
+                  type="radio"
+                  name="index-base"
+                  checked={indexBase === 0}
+                  onChange={() => setIndexBase(0)}
+                />
+                <span>0-based</span>
+              </label>
+              <label className="seg-option">
+                <input
+                  type="radio"
+                  name="index-base"
+                  checked={indexBase === 1}
+                  onChange={() => setIndexBase(1)}
+                />
+                <span>1-based</span>
+              </label>
+            </fieldset>
 
-        <fieldset className="field option-box">
-          <legend>Range mode</legend>
-          <label className="inline-option">
-            <input
-              type="radio"
-              name="range-mode"
-              checked={mode === "end"}
-              onChange={() => setMode("end")}
-            />
-            Start + End
-          </label>
-          <label className="inline-option">
-            <input
-              type="radio"
-              name="range-mode"
-              checked={mode === "length"}
-              onChange={() => setMode("length")}
-            />
-            Start + Length
-          </label>
-        </fieldset>
+            <fieldset className="segmented-group">
+              <legend>Range mode</legend>
+              <label className="seg-option">
+                <input
+                  type="radio"
+                  name="range-mode"
+                  checked={mode === "end"}
+                  onChange={() => setMode("end")}
+                />
+                <span>Start + End</span>
+              </label>
+              <label className="seg-option">
+                <input
+                  type="radio"
+                  name="range-mode"
+                  checked={mode === "length"}
+                  onChange={() => setMode("length")}
+                />
+                <span>Start + Length</span>
+              </label>
+            </fieldset>
 
-        <label className="field">
-          <span>Start Index ({indexBase}-based)</span>
-          <input value={start} onChange={(e) => setStart(e.target.value)} />
-        </label>
+            <label className="field">
+              <span>Start Index ({indexBase}-based)</span>
+              <input value={start} onChange={(e) => setStart(e.target.value)} />
+            </label>
 
-        {mode === "end" ? (
-          <label className="field">
-            <span>End Index (exclusive)</span>
-            <input value={end} onChange={(e) => setEnd(e.target.value)} />
-          </label>
-        ) : (
-          <label className="field">
-            <span>Length</span>
-            <input value={length} onChange={(e) => setLength(e.target.value)} />
-          </label>
-        )}
+            <div className="mode-slot" aria-live="polite">
+              {mode === "end" ? (
+                <label className="field">
+                  <span>End Index (exclusive)</span>
+                  <input value={end} onChange={(e) => setEnd(e.target.value)} />
+                </label>
+              ) : (
+                <label className="field">
+                  <span>Length</span>
+                  <input value={length} onChange={(e) => setLength(e.target.value)} />
+                </label>
+              )}
+            </div>
 
-        <label className="field">
-          <span>Radius</span>
-          <input value={radius} onChange={(e) => setRadius(e.target.value)} />
-        </label>
+            {mode === "length" ? (
+              <p className="helper-text">
+                Computed end ({indexBase}-based exclusive):{" "}
+                {computedEndInLengthMode === null ? "n/a" : computedEndInLengthMode}
+              </p>
+            ) : null}
+          </section>
 
-        <label className="field checkbox-field">
-          <span>Display</span>
-          <label className="inline-option">
-            <input
-              type="checkbox"
-              checked={showSpacesAsDots}
-              onChange={(e) => setShowSpacesAsDots(e.target.checked)}
-            />
-            Show spaces as dots (.)
-          </label>
-          <label className="inline-option">
-            <input
-              type="checkbox"
-              checked={showFullLine}
-              onChange={(e) => setShowFullLine(e.target.checked)}
-            />
-            Show full line
-          </label>
-        </label>
+          <section className="control-section">
+            <h2>View Options</h2>
+            <label className="field">
+              <span>Radius</span>
+              <input value={radius} onChange={(e) => setRadius(e.target.value)} />
+            </label>
 
-        <div className="button-group">
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? "Loading..." : "Go / Highlight"}
-          </button>
-          <button type="button" onClick={() => void jump(-1)} disabled={isLoading}>
-            Prev line
-          </button>
-          <button type="button" onClick={() => void jump(1)} disabled={isLoading}>
-            Next line
-          </button>
-        </div>
-      </form>
+            <label className="toggle-field">
+              <input
+                type="checkbox"
+                checked={showSpacesAsDots}
+                onChange={(e) => setShowSpacesAsDots(e.target.checked)}
+              />
+              <span>Show spaces as dots (.)</span>
+            </label>
+            <label className="toggle-field">
+              <input
+                type="checkbox"
+                checked={showFullLine}
+                onChange={(e) => setShowFullLine(e.target.checked)}
+              />
+              <span>Show full line</span>
+            </label>
+          </section>
 
-      <div className="stats-row">
-        {mode === "length" ? (
-          <p className="muted">
-            Computed end ({indexBase}-based exclusive):{" "}
-            {computedEndInLengthMode === null ? "n/a" : computedEndInLengthMode}
-          </p>
-        ) : null}
-        {data ? (
-          <p className="muted">
-            Effective range: [{data.effective_start}, {data.effective_end}) | Canonical: [
-            {data.normalized.start0}, {data.normalized.end0_exclusive})
-          </p>
-        ) : null}
-      </div>
-
-      <div className="actions-row">
-        <button type="button" onClick={() => void copyHighlightedText()} disabled={!targetLine}>
-          Copy highlighted text
-        </button>
-        <button type="button" onClick={() => void copyTargetLine()} disabled={!targetLine}>
-          Copy line
-        </button>
-        <label className="field grow">
-          <span>Find first occurrence in target line (optional)</span>
-          <div className="inline-group">
-            <input
-              value={queryWord}
-              onChange={(event) => setQueryWord(event.target.value)}
-              placeholder="word or phrase"
-            />
-            <button type="button" onClick={() => void findFirstInLine()} disabled={!targetLine}>
-              Find
+          <section className="control-section">
+            <h2>Actions</h2>
+            <button className="btn-primary" type="submit" disabled={isLoading}>
+              {isLoading ? "Loading..." : "Go / Highlight"}
             </button>
-          </div>
-        </label>
+            <p className="helper-text">Press Enter to highlight</p>
+            <div className="utility-row">
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => void copyHighlightedText()}
+                disabled={!targetLine}
+              >
+                Copy highlighted
+              </button>
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => void copyTargetLine()}
+                disabled={!targetLine}
+              >
+                Copy line
+              </button>
+            </div>
+            {error ? (
+              <p role="alert" className="error">
+                {error}
+              </p>
+            ) : null}
+          </section>
+        </form>
+
+        <section className="viewer-column card">
+          <header className="viewer-topbar">
+            <div className="viewer-title-wrap">
+              <h2>Context Viewer</h2>
+              <p className="helper-text">
+                Highlight:{" "}
+                {data
+                  ? `${data.effective_start} -> ${data.effective_end} (${data.index_base}-based)`
+                  : "n/a"}
+              </p>
+              <p className="helper-text">
+                Effective range: {data ? `[${data.effective_start}, ${data.effective_end})` : "n/a"}{" "}
+                <span className="separator-dot">•</span> Canonical:{" "}
+                {data
+                  ? `[${data.normalized.start0}, ${data.normalized.end0_exclusive})`
+                  : "n/a"}
+              </p>
+            </div>
+            <div className="finder-inline">
+              <label className="field finder-field">
+                <span>Find in target line</span>
+                <div className="inline-group">
+                  <input
+                    value={queryWord}
+                    onChange={(event) => setQueryWord(event.target.value)}
+                    placeholder="word or phrase"
+                  />
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => void findFirstInLine()}
+                    disabled={!targetLine}
+                  >
+                    Find
+                  </button>
+                </div>
+              </label>
+            </div>
+          </header>
+          <ContextViewer data={data} showSpacesAsDots={showSpacesAsDots} showFullLine={showFullLine} />
+        </section>
       </div>
-
-      {error ? (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      ) : null}
-
-      <ContextViewer data={data} showSpacesAsDots={showSpacesAsDots} showFullLine={showFullLine} />
     </section>
   );
 }
-
