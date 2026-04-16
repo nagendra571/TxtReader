@@ -93,7 +93,9 @@ function buildRangeMarkers(
   const length = windowText.length;
 
   const startIndex = Math.max(0, Math.min(inWindowStart, Math.max(0, length - 1)));
-  const rawEndIndex = Math.max(0, inWindowEnd);
+  // inWindowEnd is exclusive; convert to inclusive position for the end marker
+  const inclusiveEnd = Math.max(inWindowStart, inWindowEnd - 1);
+  const rawEndIndex = Math.max(0, inclusiveEnd);
   const endIndex = rawEndIndex >= length ? Math.max(0, length - 1) : rawEndIndex;
 
   if (length > 0) {
@@ -106,7 +108,7 @@ function buildRangeMarkers(
   }
 
   const startLabel = String(windowStart0 + inWindowStart + indexBase);
-  const endLabel = String(windowStart0 + inWindowEnd + indexBase);
+  const endLabel = String(windowStart0 + inclusiveEnd + indexBase);
   writeLabel(labelChars, startIndex, startLabel);
 
   const endLabelStart = Math.max(
