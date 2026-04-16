@@ -54,10 +54,10 @@ export function Viewer({ file }: ViewerProps) {
   const computedEndInLengthMode = useMemo(() => {
     const startValue = parseInteger(start);
     const lengthValue = parseInteger(length);
-    if (startValue === null || lengthValue === null || lengthValue < 0) {
+    if (startValue === null || lengthValue === null || lengthValue <= 0) {
       return null;
     }
-    return startValue + lengthValue;
+    return startValue + lengthValue - 1;
   }, [start, length]);
 
   function buildQueryInputs(overrides?: Partial<QueryInputs>): QueryInputs | null {
@@ -196,7 +196,7 @@ export function Viewer({ file }: ViewerProps) {
     }
 
     const startValue = index0 + indexBase;
-    const endValue = index0 + queryWord.length + indexBase;
+    const endValue = index0 + queryWord.length - 1 + indexBase;
     setStart(String(startValue));
     if (mode === "end") {
       setEnd(String(endValue));
@@ -324,7 +324,7 @@ export function Viewer({ file }: ViewerProps) {
             <div className="mode-slot" aria-live="polite">
               {mode === "end" ? (
                 <label className="field">
-                  <span>End Index (exclusive)</span>
+                  <span>End Index (inclusive)</span>
                   <input value={end} onChange={(e) => setEnd(e.target.value)} />
                 </label>
               ) : (
@@ -337,7 +337,7 @@ export function Viewer({ file }: ViewerProps) {
 
             {mode === "length" ? (
               <p className="helper-text">
-                Computed end ({indexBase}-based exclusive):{" "}
+                Computed end ({indexBase}-based inclusive):{" "}
                 {computedEndInLengthMode === null ? "n/a" : computedEndInLengthMode}
               </p>
             ) : null}
@@ -411,7 +411,7 @@ export function Viewer({ file }: ViewerProps) {
                   : "n/a"}
               </p>
               <p className="helper-text">
-                Effective range: {data ? `[${data.effective_start}, ${data.effective_end})` : "n/a"}{" "}
+                Effective range: {data ? `[${data.effective_start}, ${data.effective_end}]` : "n/a"}{" "}
                 <span className="separator-dot">•</span> Canonical:{" "}
                 {data
                   ? `[${data.normalized.start0}, ${data.normalized.end0_exclusive})`

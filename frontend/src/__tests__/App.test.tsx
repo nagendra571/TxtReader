@@ -14,10 +14,15 @@ function buildHighlightPayload(url: string) {
   const start0 = startUser - indexBase;
   const end0 =
     mode === "end"
-      ? Number(params.get("end") ?? "0") - indexBase
+      ? Number(params.get("end") ?? "0") - indexBase + 1  // end is inclusive, convert to exclusive
       : start0 + Number(params.get("length") ?? "0");
   const safeStart0 = Math.max(0, Math.min(start0, TARGET_TEXT.length));
   const safeEnd0 = Math.max(safeStart0, Math.min(end0, TARGET_TEXT.length));
+  // effective_end is the inclusive end in the user's index base
+  const effectiveEnd =
+    mode === "end"
+      ? Number(params.get("end") ?? "0")                  // user-provided inclusive end
+      : safeEnd0 > safeStart0 ? safeEnd0 - 1 + indexBase : safeStart0 + indexBase;
 
   return {
     file_id: "test-file-id",
@@ -27,7 +32,7 @@ function buildHighlightPayload(url: string) {
     index_base: indexBase,
     mode,
     effective_start: startUser,
-    effective_end: safeEnd0 + indexBase,
+    effective_end: effectiveEnd,
     effective_length: safeEnd0 - safeStart0,
     normalized: { start0: safeStart0, end0_exclusive: safeEnd0 },
     lines: [
@@ -103,12 +108,12 @@ describe("TxtReader App", () => {
     await userEvent.clear(screen.getByLabelText(/Start Index/i));
     await userEvent.type(screen.getByLabelText(/Start Index/i), "6");
     await userEvent.clear(screen.getByLabelText(/End Index/i));
-    await userEvent.type(screen.getByLabelText(/End Index/i), "11");
+    await userEvent.type(screen.getByLabelText(/End Index/i), "10");  // inclusive: chars 6..10 = "world"
     await userEvent.click(screen.getByRole("button", { name: /Go \/ Highlight/i }));
 
     await waitFor(() => {
       expect(screen.getByText("world")).toBeInTheDocument();
-      expect(screen.getByText(/Effective range: \[6, 11\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Effective range: \[6, 10\]/i)).toBeInTheDocument();
     });
 
     await userEvent.click(screen.getByRole("checkbox", { name: /Show spaces as dots/i }));
@@ -124,8 +129,8 @@ describe("TxtReader App", () => {
     await userEvent.click(screen.getByRole("button", { name: /Go \/ Highlight/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Computed end \(1-based exclusive\): 12/i)).toBeInTheDocument();
-      expect(screen.getByText(/Effective range: \[7, 12\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Computed end \(1-based inclusive\): 11/i)).toBeInTheDocument();
+      expect(screen.getByText(/Effective range: \[7, 11\]/i)).toBeInTheDocument();
     });
 
     const rulerLabels = document.querySelector(".line-ruler-labels");

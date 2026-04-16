@@ -158,7 +158,9 @@ def normalize_highlight_range(
             raise IndexValidationError(
                 f"end must be >= {min_user_index} for index_base={index_base}"
             )
-        end0_exclusive = end - index_base
+        # end is inclusive: convert to internal 0-based exclusive
+        end0_exclusive = end - index_base + 1
+        effective_end = end  # return the user-provided inclusive end as-is
     elif mode == "length":
         if length is None:
             raise IndexValidationError("length is required when mode=length")
@@ -167,6 +169,8 @@ def normalize_highlight_range(
         if length < 0:
             raise IndexValidationError("length must be >= 0")
         end0_exclusive = start0 + length
+        # express as inclusive end in the user's index base
+        effective_end = (end0_exclusive - 1 + index_base) if length > 0 else start
     else:
         raise IndexValidationError("mode must be one of: end, length")
 
@@ -177,6 +181,6 @@ def normalize_highlight_range(
         start0=start0,
         end0_exclusive=end0_exclusive,
         effective_start=start,
-        effective_end=end0_exclusive + index_base,
+        effective_end=effective_end,
         effective_length=end0_exclusive - start0,
     )

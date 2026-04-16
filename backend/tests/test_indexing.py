@@ -97,6 +97,7 @@ def test_highlight_rejects_out_of_bounds() -> None:
 
 def test_normalize_highlight_end_mode_zero_based() -> None:
     text = "abcdef"
+    # end=4 is inclusive (0-based): chars at indices 1,2,3,4 => "bcde"
     normalized = normalize_highlight_range(
         text,
         index_base=0,
@@ -106,14 +107,15 @@ def test_normalize_highlight_end_mode_zero_based() -> None:
         length=None,
     )
     assert normalized.start0 == 1
-    assert normalized.end0_exclusive == 4
+    assert normalized.end0_exclusive == 5  # inclusive 4 → exclusive 5
     assert normalized.effective_start == 1
-    assert normalized.effective_end == 4
-    assert normalized.effective_length == 3
+    assert normalized.effective_end == 4   # returned as user-provided inclusive value
+    assert normalized.effective_length == 4
 
 
 def test_normalize_highlight_end_mode_one_based() -> None:
     text = "abcdef"
+    # end=5 is inclusive (1-based): chars at 1-based positions 2,3,4,5 => "bcde"
     normalized = normalize_highlight_range(
         text,
         index_base=1,
@@ -123,14 +125,15 @@ def test_normalize_highlight_end_mode_one_based() -> None:
         length=None,
     )
     assert normalized.start0 == 1
-    assert normalized.end0_exclusive == 4
+    assert normalized.end0_exclusive == 5  # inclusive 5 (1-based) → 0-based exclusive 5
     assert normalized.effective_start == 2
-    assert normalized.effective_end == 5
-    assert normalized.effective_length == 3
+    assert normalized.effective_end == 5   # returned as user-provided inclusive value
+    assert normalized.effective_length == 4
 
 
 def test_normalize_highlight_length_mode() -> None:
     text = "abcdef"
+    # 1-based start=2, length=3 => chars at 0-based [1,4) = "bcd", inclusive end = 3 (0-based) = 4 (1-based)
     normalized = normalize_highlight_range(
         text,
         index_base=1,
@@ -141,5 +144,5 @@ def test_normalize_highlight_length_mode() -> None:
     )
     assert normalized.start0 == 1
     assert normalized.end0_exclusive == 4
-    assert normalized.effective_end == 5
+    assert normalized.effective_end == 4   # inclusive end in 1-based: 0-based exclusive(4) - 1 + base(1) = 4
     assert normalized.effective_length == 3

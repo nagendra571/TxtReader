@@ -47,7 +47,7 @@ def test_upload_then_highlight_flow(tmp_path: Path) -> None:
                 "index_base": 0,
                 "mode": "end",
                 "start": 6,
-                "end": 11,
+                "end": 10,  # inclusive: chars 6..10 = "world"
                 "radius": 1,
             },
         )
@@ -59,7 +59,7 @@ def test_upload_then_highlight_flow(tmp_path: Path) -> None:
         assert highlight_payload["index_base"] == 0
         assert highlight_payload["mode"] == "end"
         assert highlight_payload["effective_start"] == 6
-        assert highlight_payload["effective_end"] == 11
+        assert highlight_payload["effective_end"] == 10   # inclusive end returned as-is
         assert highlight_payload["effective_length"] == 5
         assert highlight_payload["normalized"] == {"start0": 6, "end0_exclusive": 11}
         target_line = next(line for line in highlight_payload["lines"] if line["line_no"] == 2)
@@ -114,7 +114,7 @@ def test_highlight_length_mode_one_based(tmp_path: Path) -> None:
         assert response.status_code == 200
         payload = response.json()
         assert payload["effective_start"] == 2
-        assert payload["effective_end"] == 6
+        assert payload["effective_end"] == 5   # inclusive end: 0-based exclusive(5) - 1 + base(1) = 5
         assert payload["effective_length"] == 4
         assert payload["normalized"] == {"start0": 1, "end0_exclusive": 5}
 
