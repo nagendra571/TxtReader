@@ -53,3 +53,27 @@ export interface FilteredLinesResponse {
   total_matches: number;
   lines: LineItem[];
 }
+
+export type MatchMode = "exact" | "contains" | "starts_with";
+
+export interface CsvStructureResponse {
+  file_id: string;
+  delimiter: string;
+  headers: string[];
+  total_data_rows: number;
+}
+
+export interface CsvRowItem {
+  line_no: number;
+  values: string[];
+}
+
+export interface CsvFilterResponse {
+  file_id: string;
+  column_index: number;
+  column_name: string;
+  value: string;
+  match_mode: MatchMode;
+  total_matches: number;
+  rows: CsvRowItem[];
+}

@@ -1,9 +1,12 @@
 import type {
   ContextResponse,
+  CsvFilterResponse,
+  CsvStructureResponse,
   FileMetadata,
   FilteredLinesResponse,
   HighlightResponse,
   IndexBase,
+  MatchMode,
   RangeMode,
   RecordTypesResponse,
 } from "../types/api";
@@ -76,6 +79,28 @@ export async function fetchHighlight(
   }
   const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/highlight?${params.toString()}`);
   return parseResponse<HighlightResponse>(response);
+}
+
+export async function fetchCsvStructure(fileId: string): Promise<CsvStructureResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/csv/structure`);
+  return parseResponse<CsvStructureResponse>(response);
+}
+
+export async function fetchCsvFilter(
+  fileId: string,
+  columnIndex: number,
+  value: string,
+  matchMode: MatchMode,
+  delimiter: string,
+): Promise<CsvFilterResponse> {
+  const params = new URLSearchParams({
+    column_index: String(columnIndex),
+    value,
+    match_mode: matchMode,
+    delimiter,
+  });
+  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/csv/filter?${params.toString()}`);
+  return parseResponse<CsvFilterResponse>(response);
 }
 
 export async function fetchRecordTypes(fileId: string): Promise<RecordTypesResponse> {

@@ -39,16 +39,17 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
     <section className="card upload-card">
       <h1>TxtReader</h1>
       <p className="muted">
-        Upload a UTF-8 <code>.txt</code> file. This app uses indexed random access for fast line lookup.
+        Upload a UTF-8 <code>.txt</code> or <code>.csv</code> file. This app uses indexed random
+        access for fast line lookup and column-based filtering for CSV files.
       </p>
 
       <form onSubmit={onSubmit}>
         <label className="field">
-          <span>Text File</span>
+          <span>Text / CSV File</span>
           <input
             aria-label="Text file"
             type="file"
-            accept=".txt,text/plain"
+            accept=".txt,.csv,text/plain,text/csv"
             onChange={(event) => {
               const file = event.target.files?.[0] ?? null;
               setSelectedFile(file);

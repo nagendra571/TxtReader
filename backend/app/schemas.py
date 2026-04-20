@@ -58,3 +58,25 @@ class FilteredLinesResponse(BaseModel):
     record_types: list[str]
     total_matches: int
     lines: list[LineItem]
+
+
+class CsvStructureResponse(BaseModel):
+    file_id: str
+    delimiter: str
+    headers: list[str]
+    total_data_rows: int
+
+
+class CsvRowItem(BaseModel):
+    line_no: int
+    values: list[str]
+
+
+class CsvFilterResponse(BaseModel):
+    file_id: str
+    column_index: int
+    column_name: str
+    value: str
+    match_mode: str
+    total_matches: int
+    rows: list[CsvRowItem]

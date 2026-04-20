@@ -2,9 +2,10 @@ import { FormEvent, useMemo, useState } from "react";
 import { ApiError, fetchHighlight } from "../api/client";
 import type { FileMetadata, HighlightResponse, IndexBase, RangeMode } from "../types/api";
 import { ContextViewer } from "./ContextViewer";
+import { CsvViewer } from "./CsvViewer";
 import { RecordTypeFilter } from "./RecordTypeFilter";
 
-type ActiveTab = "inspector" | "record-filter";
+type ActiveTab = "inspector" | "record-filter" | "csv-view";
 
 const MAX_RADIUS = 200;
 
@@ -42,7 +43,8 @@ export function Viewer({ file }: ViewerProps) {
   const [end, setEnd] = useState("0");
   const [length, setLength] = useState("0");
   const [radius, setRadius] = useState("10");
-  const [activeTab, setActiveTab] = useState<ActiveTab>("inspector");
+  const isCsv = file.filename.toLowerCase().endsWith(".csv");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(isCsv ? "csv-view" : "inspector");
   const [showSpacesAsDots, setShowSpacesAsDots] = useState(false);
   const [showFullLine, setShowFullLine] = useState(true);
   const [queryWord, setQueryWord] = useState("");
@@ -259,11 +261,19 @@ export function Viewer({ file }: ViewerProps) {
         >
           Record Type Filter
         </button>
+        {isCsv && (
+          <button
+            className={`tab-btn ${activeTab === "csv-view" ? "tab-btn--active" : ""}`}
+            type="button"
+            onClick={() => setActiveTab("csv-view")}
+          >
+            CSV View
+          </button>
+        )}
       </nav>
 
-      {activeTab === "record-filter" ? (
-        <RecordTypeFilter file={file} />
-      ) : null}
+      {activeTab === "record-filter" ? <RecordTypeFilter file={file} /> : null}
+      {activeTab === "csv-view" && isCsv ? <CsvViewer file={file} /> : null}
 
       <div className={`workspace-grid ${activeTab !== "inspector" ? "hidden" : ""}`}>
         <form className="control-panel card" onSubmit={onSubmit}>
