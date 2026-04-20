@@ -131,6 +131,42 @@ def split_highlight_segments(text: str, start: int, end: int) -> dict[str, str]:
     }
 
 
+def scan_record_types(file_index: FileIndex) -> dict[str, int]:
+    """Scan all lines and count occurrences of each 2-character record type prefix."""
+    counts: dict[str, int] = {}
+    if file_index.total_lines == 0:
+        return counts
+    with file_index.file_path.open("rb") as handle:
+        with mmap.mmap(handle.fileno(), length=0, access=mmap.ACCESS_READ) as mapped:
+            for line_no in range(1, file_index.total_lines + 1):
+                byte_start, byte_end = _line_bounds(file_index, line_no)
+                raw = mapped[byte_start:byte_end]
+                text = decode_line(raw)
+                record_type = text[:2]
+                counts[record_type] = counts.get(record_type, 0) + 1
+    return counts
+
+
+def filter_lines_by_record_types(
+    file_index: FileIndex,
+    record_types: list[str],
+) -> list[dict[str, int | str]]:
+    """Return all lines whose first two characters match any of the given record types."""
+    if file_index.total_lines == 0 or not record_types:
+        return []
+    target_set = set(record_types)
+    results: list[dict[str, int | str]] = []
+    with file_index.file_path.open("rb") as handle:
+        with mmap.mmap(handle.fileno(), length=0, access=mmap.ACCESS_READ) as mapped:
+            for line_no in range(1, file_index.total_lines + 1):
+                byte_start, byte_end = _line_bounds(file_index, line_no)
+                raw = mapped[byte_start:byte_end]
+                text = decode_line(raw)
+                if text[:2] in target_set:
+                    results.append({"line_no": line_no, "text": text})
+    return results
+
+
 def normalize_highlight_range(
     text: str,
     *,

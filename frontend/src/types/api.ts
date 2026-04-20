@@ -41,3 +41,15 @@ export interface HighlightResponse extends ContextResponse {
   effective_length: number;
   normalized: NormalizedRange;
 }
+
+export interface RecordTypesResponse {
+  file_id: string;
+  record_types: Record<string, number>;
+}
+
+export interface FilteredLinesResponse {
+  file_id: string;
+  record_types: string[];
+  total_matches: number;
+  lines: LineItem[];
+}

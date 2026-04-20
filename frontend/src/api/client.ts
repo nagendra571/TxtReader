@@ -1,9 +1,11 @@
 import type {
   ContextResponse,
   FileMetadata,
+  FilteredLinesResponse,
   HighlightResponse,
   IndexBase,
   RangeMode,
+  RecordTypesResponse,
 } from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -74,6 +76,23 @@ export async function fetchHighlight(
   }
   const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/highlight?${params.toString()}`);
   return parseResponse<HighlightResponse>(response);
+}
+
+export async function fetchRecordTypes(fileId: string): Promise<RecordTypesResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/record-types`);
+  return parseResponse<RecordTypesResponse>(response);
+}
+
+export async function fetchFilteredLines(
+  fileId: string,
+  recordTypes: string[],
+): Promise<FilteredLinesResponse> {
+  const params = new URLSearchParams();
+  for (const rt of recordTypes) {
+    params.append("record_type", rt);
+  }
+  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/filter?${params.toString()}`);
+  return parseResponse<FilteredLinesResponse>(response);
 }
 
 export { ApiError };

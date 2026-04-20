@@ -12,18 +12,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, get_settings
 from app.schemas import (
     ContextResponse,
+    FilteredLinesResponse,
     HighlightResponse,
     LineItem,
     LineSegments,
     NormalizedRange,
+    RecordTypesResponse,
     UploadResponse,
 )
 from app.services.index_store import IndexStore
 from app.services.indexing import (
     IndexValidationError,
+    filter_lines_by_record_types,
     normalize_highlight_range,
     read_context_lines,
     read_line,
+    scan_record_types,
     split_highlight_segments,
 )
 from app.services.uploads import save_upload_utf8
@@ -221,6 +225,36 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
                 end0_exclusive=normalized.end0_exclusive,
             ),
             lines=lines_payload,
+        )
+
+    @app.get("/api/files/{file_id}/record-types", response_model=RecordTypesResponse)
+    async def get_record_types(file_id: str) -> RecordTypesResponse:
+        index_store: IndexStore = app.state.index_store
+        file_index = await run_in_threadpool(index_store.get, file_id)
+        if file_index is None:
+            raise HTTPException(status_code=404, detail="file_id not found")
+
+        counts = await run_in_threadpool(scan_record_types, file_index)
+        # Return sorted by record type prefix for deterministic ordering
+        sorted_counts = dict(sorted(counts.items()))
+        return RecordTypesResponse(file_id=file_id, record_types=sorted_counts)
+
+    @app.get("/api/files/{file_id}/filter", response_model=FilteredLinesResponse)
+    async def filter_by_record_type(
+        file_id: str,
+        record_type: list[str] = Query(..., description="Record type prefix(es) to filter by"),
+    ) -> FilteredLinesResponse:
+        index_store: IndexStore = app.state.index_store
+        file_index = await run_in_threadpool(index_store.get, file_id)
+        if file_index is None:
+            raise HTTPException(status_code=404, detail="file_id not found")
+
+        lines = await run_in_threadpool(filter_lines_by_record_types, file_index, record_type)
+        return FilteredLinesResponse(
+            file_id=file_id,
+            record_types=record_type,
+            total_matches=len(lines),
+            lines=[LineItem(**item) for item in lines],
         )
 
     return app

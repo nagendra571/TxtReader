@@ -44,3 +44,17 @@ class HighlightResponse(ContextResponse):
     effective_end: int
     effective_length: int
     normalized: NormalizedRange
+
+
+class RecordTypesResponse(BaseModel):
+    file_id: str
+    record_types: dict[str, int] = Field(
+        description="Map of record type prefix to line count, sorted by prefix"
+    )
+
+
+class FilteredLinesResponse(BaseModel):
+    file_id: str
+    record_types: list[str]
+    total_matches: int
+    lines: list[LineItem]

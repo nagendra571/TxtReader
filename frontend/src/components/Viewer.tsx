@@ -2,6 +2,9 @@ import { FormEvent, useMemo, useState } from "react";
 import { ApiError, fetchHighlight } from "../api/client";
 import type { FileMetadata, HighlightResponse, IndexBase, RangeMode } from "../types/api";
 import { ContextViewer } from "./ContextViewer";
+import { RecordTypeFilter } from "./RecordTypeFilter";
+
+type ActiveTab = "inspector" | "record-filter";
 
 const MAX_RADIUS = 200;
 
@@ -39,6 +42,7 @@ export function Viewer({ file }: ViewerProps) {
   const [end, setEnd] = useState("0");
   const [length, setLength] = useState("0");
   const [radius, setRadius] = useState("10");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("inspector");
   const [showSpacesAsDots, setShowSpacesAsDots] = useState(false);
   const [showFullLine, setShowFullLine] = useState(true);
   const [queryWord, setQueryWord] = useState("");
@@ -240,7 +244,28 @@ export function Viewer({ file }: ViewerProps) {
         </div>
       </header>
 
-      <div className="workspace-grid">
+      <nav className="viewer-tabs">
+        <button
+          className={`tab-btn ${activeTab === "inspector" ? "tab-btn--active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("inspector")}
+        >
+          Inspector
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "record-filter" ? "tab-btn--active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("record-filter")}
+        >
+          Record Type Filter
+        </button>
+      </nav>
+
+      {activeTab === "record-filter" ? (
+        <RecordTypeFilter file={file} />
+      ) : null}
+
+      <div className={`workspace-grid ${activeTab !== "inspector" ? "hidden" : ""}`}>
         <form className="control-panel card" onSubmit={onSubmit}>
           <section className="control-section">
             <h2>Location</h2>
