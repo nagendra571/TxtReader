@@ -60,7 +60,20 @@ export interface CsvStructureResponse {
   file_id: string;
   delimiter: string;
   headers: string[];
+  has_header: boolean;
   total_data_rows: number;
+}
+
+export interface CsvDistinctValue {
+  value: string;
+  count: number;
+}
+
+export interface CsvDistinctResponse {
+  file_id: string;
+  column_index: number;
+  column_name: string;
+  values: CsvDistinctValue[];
 }
 
 export interface CsvRowItem {
@@ -74,6 +87,9 @@ export interface CsvFilterResponse {
   column_name: string;
   value: string;
   match_mode: MatchMode;
+  has_header: boolean;
+  record_type_column_index: number | null;
+  record_type_value: string | null;
   total_matches: number;
   rows: CsvRowItem[];
 }

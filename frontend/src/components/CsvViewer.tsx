@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, fetchCsvFilter, fetchCsvStructure } from "../api/client";
+import {
+  ApiError,
+  fetchCsvDistinct,
+  fetchCsvFilter,
+  fetchCsvStructure,
+} from "../api/client";
 import type {
+  CsvDistinctValue,
   CsvFilterResponse,
   CsvStructureResponse,
   FileMetadata,
@@ -11,7 +17,11 @@ interface CsvViewerProps {
   file: FileMetadata;
 }
 
-function exportCsv(headers: string[], rows: CsvFilterResponse["rows"], filename: string): void {
+function exportCsv(
+  headers: string[],
+  rows: CsvFilterResponse["rows"],
+  filename: string,
+): void {
   const escape = (v: string) =>
     v.includes(",") || v.includes('"') || v.includes("\n")
       ? `"${v.replace(/"/g, '""')}"`
@@ -36,31 +46,72 @@ const MATCH_MODES: { value: MatchMode; label: string }[] = [
 ];
 
 export function CsvViewer({ file }: CsvViewerProps) {
+  // ── Structure ──────────────────────────────────────────────────
+  const [hasHeader, setHasHeader] = useState(true);
   const [structure, setStructure] = useState<CsvStructureResponse | null>(null);
   const [loadingStructure, setLoadingStructure] = useState(false);
+
+  // ── Record Type ────────────────────────────────────────────────
+  const [rtColumnIndex, setRtColumnIndex] = useState(0);
+  const [distinctValues, setDistinctValues] = useState<CsvDistinctValue[]>([]);
+  const [loadingDistinct, setLoadingDistinct] = useState(false);
+  const [selectedRt, setSelectedRt] = useState<string | null>(null);
+
+  // ── Column Filter ──────────────────────────────────────────────
   const [columnIndex, setColumnIndex] = useState(0);
   const [value, setValue] = useState("");
   const [matchMode, setMatchMode] = useState<MatchMode>("contains");
   const [result, setResult] = useState<CsvFilterResponse | null>(null);
   const [loadingFilter, setLoadingFilter] = useState(false);
+
+  // ── Error ──────────────────────────────────────────────────────
   const [error, setError] = useState("");
 
+  // Fetch structure whenever hasHeader toggles
   const loadStructure = useCallback(async () => {
     setLoadingStructure(true);
     setError("");
+    setResult(null);
+    setDistinctValues([]);
+    setSelectedRt(null);
     try {
-      const s = await fetchCsvStructure(file.file_id);
+      const s = await fetchCsvStructure(file.file_id, hasHeader);
       setStructure(s);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to read CSV structure.");
     } finally {
       setLoadingStructure(false);
     }
-  }, [file.file_id]);
+  }, [file.file_id, hasHeader]);
 
   useEffect(() => {
     void loadStructure();
   }, [loadStructure]);
+
+  // Fetch distinct values whenever structure or rtColumnIndex changes
+  const loadDistinct = useCallback(async () => {
+    if (!structure) return;
+    setLoadingDistinct(true);
+    setSelectedRt(null);
+    setResult(null);
+    try {
+      const d = await fetchCsvDistinct(
+        file.file_id,
+        rtColumnIndex,
+        structure.delimiter,
+        hasHeader,
+      );
+      setDistinctValues(d.values);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load distinct values.");
+    } finally {
+      setLoadingDistinct(false);
+    }
+  }, [file.file_id, structure, rtColumnIndex, hasHeader]);
+
+  useEffect(() => {
+    void loadDistinct();
+  }, [loadDistinct]);
 
   async function applyFilter() {
     if (!structure) return;
@@ -77,6 +128,9 @@ export function CsvViewer({ file }: CsvViewerProps) {
         value,
         matchMode,
         structure.delimiter,
+        hasHeader,
+        selectedRt !== null ? rtColumnIndex : null,
+        selectedRt,
       );
       setResult(r);
     } catch (err) {
@@ -91,10 +145,20 @@ export function CsvViewer({ file }: CsvViewerProps) {
 
   return (
     <div className="csv-viewer-shell">
+      {/* ── Left controls panel ─────────────────────────────── */}
       <div className="csv-controls card">
-        {/* Structure summary */}
+
+        {/* 1. Has-header toggle */}
         <section className="control-section">
-          <h2>CSV Structure</h2>
+          <h2>CSV Settings</h2>
+          <label className="toggle-field">
+            <input
+              type="checkbox"
+              checked={hasHeader}
+              onChange={(e) => setHasHeader(e.target.checked)}
+            />
+            <span>First row is a header</span>
+          </label>
           {loadingStructure ? (
             <p className="muted">Detecting structure…</p>
           ) : structure ? (
@@ -115,17 +179,74 @@ export function CsvViewer({ file }: CsvViewerProps) {
                     {h}
                   </span>
                 ))}
-                {headers.length === 0 && <p className="muted">No headers detected.</p>}
               </div>
             </>
-          ) : (
-            <p className="muted">Could not read structure.</p>
+          ) : null}
+        </section>
+
+        {/* 2. Record Type selector */}
+        <section className="control-section">
+          <h2>Record Type</h2>
+          <label className="field">
+            <span>Record type column</span>
+            <select
+              className="csv-select"
+              value={rtColumnIndex}
+              onChange={(e) => {
+                setRtColumnIndex(Number(e.target.value));
+              }}
+              disabled={!structure}
+            >
+              {headers.map((h, i) => (
+                <option key={i} value={i}>
+                  {i}: {h}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {loadingDistinct ? (
+            <p className="muted">Loading values…</p>
+          ) : distinctValues.length > 0 ? (
+            <div className="rt-chip-list">
+              <button
+                className={`rt-chip ${selectedRt === null ? "rt-chip--active" : ""}`}
+                type="button"
+                onClick={() => { setSelectedRt(null); setResult(null); }}
+              >
+                All
+              </button>
+              {distinctValues.map((dv) => (
+                <button
+                  key={dv.value}
+                  className={`rt-chip ${selectedRt === dv.value ? "rt-chip--active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRt((prev) => (prev === dv.value ? null : dv.value));
+                    setResult(null);
+                  }}
+                  title={`${dv.count.toLocaleString()} rows`}
+                >
+                  {dv.value || <em>empty</em>}
+                  <span className="rt-chip-count">{dv.count.toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
+          ) : structure ? (
+            <p className="muted">No values found in this column.</p>
+          ) : null}
+
+          {selectedRt !== null && (
+            <p className="helper-text">
+              Pre-filtering: <strong>{headers[rtColumnIndex] ?? `Col ${rtColumnIndex}`}</strong>{" "}
+              = &ldquo;{selectedRt}&rdquo;
+            </p>
           )}
         </section>
 
-        {/* Filter controls */}
+        {/* 3. Column filter */}
         <section className="control-section">
-          <h2>Filter</h2>
+          <h2>Column Filter</h2>
           <label className="field">
             <span>Column</span>
             <select
@@ -149,9 +270,7 @@ export function CsvViewer({ file }: CsvViewerProps) {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="search value…"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void applyFilter();
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter") void applyFilter(); }}
             />
           </label>
 
@@ -198,7 +317,7 @@ export function CsvViewer({ file }: CsvViewerProps) {
         </section>
       </div>
 
-      {/* Results table */}
+      {/* ── Right results panel ──────────────────────────────── */}
       <section className="csv-results card">
         <header className="viewer-topbar">
           <div className="viewer-title-wrap">
@@ -206,7 +325,13 @@ export function CsvViewer({ file }: CsvViewerProps) {
             {result ? (
               <p className="helper-text">
                 {result.total_matches.toLocaleString()} row
-                {result.total_matches !== 1 ? "s" : ""} where{" "}
+                {result.total_matches !== 1 ? "s" : ""}
+                {result.record_type_value !== null && (
+                  <>
+                    {" "}where <strong>{headers[result.record_type_column_index ?? 0] ?? `Col ${result.record_type_column_index}`}</strong>
+                    {" "}= &ldquo;{result.record_type_value}&rdquo; and
+                  </>
+                )}{" "}
                 <strong>{result.column_name}</strong>{" "}
                 {result.match_mode === "exact"
                   ? "equals"
@@ -216,7 +341,11 @@ export function CsvViewer({ file }: CsvViewerProps) {
                 &ldquo;{result.value}&rdquo;
               </p>
             ) : (
-              <p className="helper-text muted">Select a column, enter a value, and filter.</p>
+              <p className="helper-text muted">
+                {selectedRt !== null
+                  ? `Showing record type "${selectedRt}" — enter a value and apply filter.`
+                  : "Select a record type and/or enter a value to filter."}
+              </p>
             )}
           </div>
         </header>
@@ -230,7 +359,13 @@ export function CsvViewer({ file }: CsvViewerProps) {
                   {headers.map((h, i) => (
                     <th
                       key={i}
-                      className={`csv-th ${i === result.column_index ? "csv-th--active" : ""}`}
+                      className={[
+                        "csv-th",
+                        i === result.column_index ? "csv-th--active" : "",
+                        i === (result.record_type_column_index ?? -1) ? "csv-th--rt" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
                     >
                       {h || <span className="muted">col {i}</span>}
                     </th>
@@ -244,7 +379,13 @@ export function CsvViewer({ file }: CsvViewerProps) {
                     {row.values.map((cell, i) => (
                       <td
                         key={i}
-                        className={`csv-td ${i === result.column_index ? "csv-td--active" : ""}`}
+                        className={[
+                          "csv-td",
+                          i === result.column_index ? "csv-td--active" : "",
+                          i === (result.record_type_column_index ?? -1) ? "csv-td--rt" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                       >
                         {cell}
                       </td>

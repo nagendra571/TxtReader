@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, get_settings
 from app.schemas import (
     ContextResponse,
+    CsvDistinctResponse,
+    CsvDistinctValue,
     CsvFilterResponse,
     CsvRowItem,
     CsvStructureResponse,
@@ -23,7 +25,12 @@ from app.schemas import (
     RecordTypesResponse,
     UploadResponse,
 )
-from app.services.csv_service import MatchMode, detect_csv_structure, filter_csv_rows
+from app.services.csv_service import (
+    MatchMode,
+    detect_csv_structure,
+    filter_csv_rows,
+    get_distinct_column_values,
+)
 from app.services.index_store import IndexStore
 from app.services.indexing import (
     IndexValidationError,
@@ -234,18 +241,48 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/api/files/{file_id}/csv/structure", response_model=CsvStructureResponse)
-    async def get_csv_structure(file_id: str) -> CsvStructureResponse:
+    async def get_csv_structure(
+        file_id: str,
+        has_header: bool = Query(True, description="Whether the first row is a header"),
+    ) -> CsvStructureResponse:
         index_store: IndexStore = app.state.index_store
         file_index = await run_in_threadpool(index_store.get, file_id)
         if file_index is None:
             raise HTTPException(status_code=404, detail="file_id not found")
 
-        structure = await run_in_threadpool(detect_csv_structure, file_index)
+        structure = await run_in_threadpool(detect_csv_structure, file_index, has_header)
         return CsvStructureResponse(
             file_id=file_id,
             delimiter=structure["delimiter"],
             headers=structure["headers"],
+            has_header=has_header,
             total_data_rows=structure["total_data_rows"],
+        )
+
+    @app.get("/api/files/{file_id}/csv/distinct", response_model=CsvDistinctResponse)
+    async def get_csv_distinct(
+        file_id: str,
+        column_index: int = Query(..., ge=0, description="0-based column index to scan"),
+        delimiter: str = Query(",", description="CSV delimiter character"),
+        has_header: bool = Query(True, description="Whether the first row is a header"),
+    ) -> CsvDistinctResponse:
+        index_store: IndexStore = app.state.index_store
+        file_index = await run_in_threadpool(index_store.get, file_id)
+        if file_index is None:
+            raise HTTPException(status_code=404, detail="file_id not found")
+
+        structure = await run_in_threadpool(detect_csv_structure, file_index, has_header)
+        headers: list[str] = structure["headers"]
+        column_name = headers[column_index] if column_index < len(headers) else str(column_index)
+
+        distinct = await run_in_threadpool(
+            get_distinct_column_values, file_index, delimiter, column_index, has_header
+        )
+        return CsvDistinctResponse(
+            file_id=file_id,
+            column_index=column_index,
+            column_name=column_name,
+            values=[CsvDistinctValue(value=d["value"], count=d["count"]) for d in distinct],
         )
 
     @app.get("/api/files/{file_id}/csv/filter", response_model=CsvFilterResponse)
@@ -255,19 +292,29 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
         value: str = Query(..., description="Value to match in the column"),
         match_mode: MatchMode = Query("contains", description="Match strategy: exact, contains, or starts_with"),
         delimiter: str = Query(",", description="CSV delimiter character"),
+        has_header: bool = Query(True, description="Whether the first row is a header"),
+        record_type_column_index: int | None = Query(None, ge=0, description="Column index used as record type pre-filter"),
+        record_type_value: str | None = Query(None, description="Record type value to pre-filter by"),
     ) -> CsvFilterResponse:
         index_store: IndexStore = app.state.index_store
         file_index = await run_in_threadpool(index_store.get, file_id)
         if file_index is None:
             raise HTTPException(status_code=404, detail="file_id not found")
 
-        # Re-fetch structure to get the header name for the response
-        structure = await run_in_threadpool(detect_csv_structure, file_index)
+        structure = await run_in_threadpool(detect_csv_structure, file_index, has_header)
         headers: list[str] = structure["headers"]
         column_name = headers[column_index] if column_index < len(headers) else str(column_index)
 
         rows = await run_in_threadpool(
-            filter_csv_rows, file_index, delimiter, column_index, value, match_mode
+            filter_csv_rows,
+            file_index,
+            delimiter,
+            column_index,
+            value,
+            match_mode,
+            has_header,
+            record_type_column_index,
+            record_type_value,
         )
         return CsvFilterResponse(
             file_id=file_id,
@@ -275,6 +322,9 @@ def create_app(custom_settings: Settings | None = None) -> FastAPI:
             column_name=column_name,
             value=value,
             match_mode=match_mode,
+            has_header=has_header,
+            record_type_column_index=record_type_column_index,
+            record_type_value=record_type_value,
             total_matches=len(rows),
             rows=[CsvRowItem(line_no=r["line_no"], values=r["values"]) for r in rows],
         )

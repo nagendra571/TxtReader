@@ -1,5 +1,6 @@
 import type {
   ContextResponse,
+  CsvDistinctResponse,
   CsvFilterResponse,
   CsvStructureResponse,
   FileMetadata,
@@ -81,9 +82,32 @@ export async function fetchHighlight(
   return parseResponse<HighlightResponse>(response);
 }
 
-export async function fetchCsvStructure(fileId: string): Promise<CsvStructureResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/csv/structure`);
+export async function fetchCsvStructure(
+  fileId: string,
+  hasHeader: boolean,
+): Promise<CsvStructureResponse> {
+  const params = new URLSearchParams({ has_header: String(hasHeader) });
+  const response = await fetch(
+    `${API_BASE_URL}/api/files/${fileId}/csv/structure?${params.toString()}`,
+  );
   return parseResponse<CsvStructureResponse>(response);
+}
+
+export async function fetchCsvDistinct(
+  fileId: string,
+  columnIndex: number,
+  delimiter: string,
+  hasHeader: boolean,
+): Promise<CsvDistinctResponse> {
+  const params = new URLSearchParams({
+    column_index: String(columnIndex),
+    delimiter,
+    has_header: String(hasHeader),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/api/files/${fileId}/csv/distinct?${params.toString()}`,
+  );
+  return parseResponse<CsvDistinctResponse>(response);
 }
 
 export async function fetchCsvFilter(
@@ -92,14 +116,24 @@ export async function fetchCsvFilter(
   value: string,
   matchMode: MatchMode,
   delimiter: string,
+  hasHeader: boolean,
+  recordTypeColumnIndex: number | null,
+  recordTypeValue: string | null,
 ): Promise<CsvFilterResponse> {
   const params = new URLSearchParams({
     column_index: String(columnIndex),
     value,
     match_mode: matchMode,
     delimiter,
+    has_header: String(hasHeader),
   });
-  const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/csv/filter?${params.toString()}`);
+  if (recordTypeColumnIndex !== null && recordTypeValue !== null) {
+    params.set("record_type_column_index", String(recordTypeColumnIndex));
+    params.set("record_type_value", recordTypeValue);
+  }
+  const response = await fetch(
+    `${API_BASE_URL}/api/files/${fileId}/csv/filter?${params.toString()}`,
+  );
   return parseResponse<CsvFilterResponse>(response);
 }
 

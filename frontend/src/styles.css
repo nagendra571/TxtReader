@@ -653,6 +653,11 @@ mark {
   color: #2563eb;
 }
 
+.csv-th--rt {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
 .csv-td {
   border-bottom: 1px solid #edf2f7;
   border-right: 1px solid #f1f5f9;
@@ -677,6 +682,11 @@ mark {
   font-weight: 500;
 }
 
+.csv-td--rt {
+  background: #f0fdf4;
+  font-weight: 500;
+}
+
 .csv-table tbody tr:nth-child(odd) {
   background: #fff;
 }
@@ -697,6 +707,55 @@ mark {
 /* 3-column segmented group for CSV match mode */
 .segmented-group:has(.seg-option:nth-child(4)) {
   grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* ── Record Type chips ──────────────────────────────────────── */
+
+.rt-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-family: "JetBrains Mono", "Consolas", monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 120ms ease;
+  letter-spacing: 0.03em;
+}
+
+.rt-chip:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: var(--text);
+}
+
+.rt-chip--active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.rt-chip--active:hover:not(:disabled) {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
+.rt-chip-count {
+  font-size: 0.68rem;
+  font-weight: 400;
+  opacity: 0.75;
 }
 
 @media (max-width: 1120px) {

@@ -64,7 +64,20 @@ class CsvStructureResponse(BaseModel):
     file_id: str
     delimiter: str
     headers: list[str]
+    has_header: bool
     total_data_rows: int
+
+
+class CsvDistinctValue(BaseModel):
+    value: str
+    count: int
+
+
+class CsvDistinctResponse(BaseModel):
+    file_id: str
+    column_index: int
+    column_name: str
+    values: list[CsvDistinctValue]
 
 
 class CsvRowItem(BaseModel):
@@ -78,5 +91,8 @@ class CsvFilterResponse(BaseModel):
     column_name: str
     value: str
     match_mode: str
+    has_header: bool
+    record_type_column_index: int | None = None
+    record_type_value: str | None = None
     total_matches: int
     rows: list[CsvRowItem]
